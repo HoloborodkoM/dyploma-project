@@ -1,0 +1,155 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+
+enum Role {
+  USER
+  MEDIC
+  ROOT
+}
+
+model User {
+  id             Int                  @id @default(autoincrement())
+  email          String               @unique
+  password       String
+  name           String
+  role           Role                 @default(USER)
+  createdAt      DateTime             @default(now())
+  courses        Course[]             @relation("AuthoredCourses")
+  courseProgress    UserCourseProgress[]
+  completedLessons  CompletedLesson[]
+  simulations    Simulation[]         @relation("AuthoredSimulations")
+}
+
+model Course {
+  id            Int                  @id @default(autoincrement())
+  title         String
+  slug          String               @unique
+  description   String?
+  imageUrl      String?
+  author        User?                @relation("AuthoredCourses", fields: [authorId], references: [id], onDelete: SetNull)
+  authorId      Int?
+  keywords      String[]
+  createdAt     DateTime             @default(now())
+  sections      Section[]
+  totalLessons  Int                  @default(0)
+  userProgress  UserCourseProgress[]
+  completedLessons CompletedLesson[]
+  version       Int                  @default(1)
+  editedAt      DateTime?
+}
+
+model Section {
+  id       Int      @id @default(autoincrement())
+  title    String
+  order    Int
+  course   Course   @relation(fields: [courseId], references: [id])
+  courseId Int
+  lessons  Lesson[]
+}
+
+enum LessonType {
+  TEXT
+  VIDEO
+  DOCUMENT
+  TEST
+}
+
+model Lesson {
+  id           Int              @id @default(autoincrement())
+  title        String
+  type         LessonType
+  content      String?
+  videoUrl     String?
+  documentUrl  String?
+  test         Json?
+  order        Int
+  section      Section          @relation(fields: [sectionId], references: [id])
+  sectionId    Int
+  completedBy  CompletedLesson[]
+}
+
+enum CourseStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+model UserCourseProgress {
+  id            Int          @id @default(autoincrement())
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        Int
+  course        Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId      Int
+  status        CourseStatus @default(IN_PROGRESS)
+  startedAt     DateTime     @default(now())
+  completedAt   DateTime?
+  lastAccessAt  DateTime     @default(now())
+  completedLessonsCount Int  @default(0)
+
+  @@unique([userId, courseId])
+}
+
+model CompletedLesson {
+  id          Int       @id @default(autoincrement())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      Int
+  lesson      Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId    Int
+  course      Course    @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  courseId    Int
+  completedAt DateTime  @default(now())
+  timeSpent   Int       @default(0)
+
+  @@unique([userId, lessonId])
+  @@index([courseId, userId])
+}
+
+model Simulation {
+  id          Int         @id @default(autoincrement())
+  title       String
+  slug        String      @unique
+  description String?
+  imageUrl    String?
+  createdAt   DateTime    @default(now())
+  editedAt    DateTime?
+  version     Int         @default(1)
+  author      User?        @relation("AuthoredSimulations", fields: [authorId], references: [id], onDelete: SetNull)
+  authorId    Int?
+  steps       Step[]
+  keywords    String[]
+}
+
+model Step {
+  id              Int        @id @default(autoincrement())
+  title           String
+  content         String
+  videoUrl        String
+  videoPreviewUrl String?
+  order           Int
+  simulation      Simulation @relation(fields: [simulationId], references: [id], onDelete: Cascade)
+  simulationId    Int
+}
+
+model PendingCode {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  password  String
+  code      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
